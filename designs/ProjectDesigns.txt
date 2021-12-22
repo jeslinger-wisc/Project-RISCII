@@ -1,94 +1,158 @@
-Project RISCII: Project Design Document (v0.0.1)
+Project RISCII: Project Design Document (v0.0.2)
 ================================================================================
 Version Notes:
-    -> 12/21/2021 (v0.0.1) created document
+    -> v0.0.1 created doc
+    -> v0.0.2 added hardware section
 ================================================================================
-Objective:
+Summary:
 
-        This document is meant to provide an overview of the project in terms of
-    its overall requirements (what the system should be able to do),
-    specifications (how the system will generally complete its requirements),
-    and limitations (aspects the project can not realistically do or are not
-    being done for the sake of simplicity/keeping the project shorter).
-    
-        Note: For simplicity's sake, many of the complex hardware/OS features
-    are being saved for a later date for requirement/specification/etc. Some
-    details have been specified, however, to minimize changes made to the
-    Instruction Set Architecture (ISA) over time.
+    == Objective ==
+        This document is meant to provide an overview of what i'm trying to do.
+    The document focuses mostly on requirements and limitations. While the idea
+    is to stick close to industry standards/practices, various parts may be
+    simplified to keep the project manageable in the short run.
 
 ================================================================================
 Hardware:
 
-    Flashing:
-        The hardware will have a JTAG-esque interface used for flashing the
-    hardware's non-volatile memory (see below for pins). The flash state machine
-    should be able to:
+    == Flashing ==
+        A JTAG-esque interface will provide a way to flash software onto the
+    hardware (see pins below). In JTAG fashion, data is passed in/out via
+    shifting bit registers. The state machine should be able to:
         1) halt the processor
-        2) assert control over non-volatile memory access 
-        3) efficiently erase the flash (ie don't 0-out ech byte manually)
-        4) write specified data to any specified address
+        2) assert control over flash/EEPROM
+        3) erase/0-out flash/EEPROM
+        4) write specified data to any address
         5) assert a hardware reset
-        
-        As a JTAG-esque interface, opcodes/data can be passed in via shifting
-    bits into registers per clock signal. The output pin can be used to denote
-    if the flash state machine is ready to execute the next command. Registers
-    for the opcode, data, and address should be present. It is advised to seek
-    ways to minimize the number of bit shifts per program flashed.
     
-        JTAG pins:
-        (I)TDI: Input pin specifying bit to shift in
-        (O)TDO: Output pin (specifying if the state machine is ready)
-        (I)TMS: Select pin, used to help determine state
-        (I)TCK: Clock pin, raised when TDI is ready to be shifted in
+        Below are the pins for JTAG(I=input, O=output):
+        (I)TDI: Input pin, specifies bit to shift in
+        (O)TDO: Output pin, high when ready to receive input
+        (I)TMS: Select pin, used to determine shift register/next state
+        (I)TCK: Clock pin, raised when TDI is ready to be read
         (I)TRSTL Reset in, resets flash state machine
     
-    Serial Communication:
-        The hardware will have a single, SPI-esque transmitter to communicate
-    output during runtime (see below for pins). It should support two 1 byte
-    registers- a data register and a config register -which are memory mapped
-    to addresses not available in RAM. In SPI fashion, an active-low chip select
-    signal should be held low while sending data. Finally, for simplicity, the
-    transmitter will always use the following settings:
+    == Serial Communication ==
+        A SPI-esque interface will provide a way to output data during runtime.
+    Registers, memory mapped to unused RAM addresses, will provide ways to write
+    data/control the transmitter. The following settings should be constant:
         1) clock polarity = 1 (clock is high when not in use)
-        2) clock phase = 1 (with polarity = 1, rising edges denote value)
+        2) clock phase = 1 (with polarity = 1, rising edges denotes value)
         3) payload = 8 bits (only 8 bits should be sent at a time)
         4) endianess = little (LSB is sent first, MSB last)
         
-        SPI pins:
-        (O)ROEI: Output pin, defines output data
-        (O)SCLK: Clock pin, defines when to intake data
-        (O)CS: Chip select, defines when data is being output
-
-    Processor/Hardware Architecture:
-        The processor/hardware should model a 32-bit, RISC style architecture
-    with 32-bit instructions. Specifically, for RISC, hardware and instructions
-    should be kept simple. The processsor should follow a standard 5 stage
-    pipeline (Fetch, Decode, Execute, Memory, Writeback) should be implemented
-    (with some possible exceptions for complex instructions).
+        Below are the pins for SPI(I=input, O=output)
+        (O)COPI: Output pin, specifies bit being output
+        (O)SCLK: Clock pin, specifies when COPI is ready to be read
+        (O)CS: Chip select, low when transmitter is outputting data
     
-        The memory should model a standard Harvard architecture with completely
-    separate instruction and data memories (Note: for simplicity, instructions
-    wil be directly read into the processor rather than first being loaded into
-    RAM and executed from there).
+    == Hardware Architecture ==
+        The overall hardware follows a 32-bit, RISC style architecture (ie
+    simple hardware/instruction design) with 32-bit instructions. The processor
+    itself follow a typical 5 stage pipeline (Fetch, Decode, Execute, Memory,
+    Writeback) with hazard detection/cleanup and a Harvard style memory 
+    architecture (ie separate instruction and data memories).
     
-        In terms of hardware level support for data types, the following is a
-    list of what is (R)equired to be well supported/optimized, (D)ecently
-    supported/optimized, and (O)ptionally supported/optimized:
+        The following data types are either (R)equired to have support and
+    optimization, (P)referred to have support and optimizations, or (N)ot
+    required to have support or optimization:
         (R) 1-byte signed/unsigned integers
         (R) 2-byte signed/unsigned integers
         (R) 4-byte signed/unsigned integers
-        (D) 8-byte signed/unsigned integers
-        (O) 4-byte floating point
-        (O) 8-byte floating point
+        (P) 8-byte signed/unsigned integers
+        (N) 4-byte floating point
+        (N) 8-byte floating point
     
-    Instruction Set Architecure (ISA):
-        The 
+    == Instruction Set Architecture (ISA) ==
+        The hardware supports, in some 1 instruction form, the following data
+    operations (with and without immediate values):
+        Basic Bitwise: AND, OR, XOR, NOT
+        Shift Bitwise: Logical Left/Right, Arithmetic Right, Rotate (up to 31)
+        Basic Arithmetic: Add, Subtract, Inverse, Set value (cover all 32 bits)
+        
+        The hardware supports, in some 1 instruction form, the following memory
+    operations (always use 4 bytes, always round down to aligned groups of 4,
+    can access both RAM and flash/EEPROM):
+        Basic Loading: Immediate Address, Register + Immediate Address
+        Basic Storing: Immediate Address, Register + Immediate Address
+        
+        The hardware supports, in some 1 instruction form, the following PC
+    operations (always round addresses down to aligned groups of 4):
+        Basic Branch: PC + Immediate if value is of specified sign (NZP)
+        Basic Jumps: PC + Immediate, Register + Immediate Address
+        Linked Offset: PC + Immediate & PC + 4 -> register file
+        Linked Address: Register + Immediate Address & PC + 4 -> register file
+        Get PC: PC + 4 -> Register file
+        
+        The hardware supports, in 1 instruction form, the following processor
+    control operations:
+        No operation: instruction that has no effect on system
+        Halt: halts the processor, PC stuck at PC address of halt + 4
+        
+        The following instructions are, in some form, included in the ISA, but
+    are not required to be functional to meet the current iteration goals:
+        Complex Arithmetic: multiply, divide, modulo
+        Special Registers: Read, Write
+        Syscall
+        Initial Interrupt
+        Some mode of 'Return from kernel'
+        Some mode of 'Return from interrupt'
+        Complex Memory: Load/Store 1,2,4 byte words with signedness
+        Complex Branching: Branch for specified overflow presence/absence
+        
+        Note: The ISA should be designed to have a convenient pattern for
+    detecting "kernel only" opcodes (which includes 'Halt', 'Special Registers',
+    and other instructions that 1) solely edit flash/EEPROM 2) break out of
+    kernel mode or 3) break out of interrupt mode).
     
-    Cache/Memory Specifications:
-    
-    Verification/Validation Metrics:
-    
-    Limitations:
+    == Cache/Memory Specifications ==
+        The following are the specifications to be used when designing the
+    instruction and data caches:
+        Block Size: 4 (4 32-bit registers)
+        Set Size: 1 (direct-mapped cache)
+        Indices: 16 (16 blocks per cache)
+        (Assume a hit can be returned within the polling cycle)
+        
+        The following are the specifications of both the flash/EEPROM and RAM
+    memories:
+        Size: 64 KB per memory, block addressable
+        Read Time: 4 clock cycles
+        Write Time: 8 clock cycles
+        Reset Time: 8 clock cycles
+        
+        The caches and memories will interface using the following signals
+    (I=input, O=output):
+        (I)Memory Address: Address to be written to/read from
+        (I)Input Block: Data to be written to meory (if writing)
+        (I)Rd Signal: Asserted if requesting a read operation
+        (I)Wr Signal: Asserted if requesting a write operation
+        (I)Enable Signal: Asserted to request an operation to begin
+        (O)Output Block: Data read from memory (if reading)
+        (O)Stall Signal: Asserted if memory requires another clock edge
+        (O)Done Signal: Asserted for 1 period when operation finished
 
+    == Verification/Validation Features ==
+        For simplifying the verification and validation processes of the
+    hardware, additional hardware should be added to propagate two signals to
+    the final stage (ie Writeback) of the processor. The first is the halt
+    signal (that stops the processor). The second signal represents if the stage
+    is currently executing an instruction (ie all instructions properly executed
+    should have this signal high for their writeback stage).
+    
+	== Rules of Hardware Design ==
+		Hardware files should only be written in verilog (.v). The only basic
+	units to be used should be wire, &, |, ~, ^, and whatever it takes to create
+	a basic D-flip-flop (always on clk or reset w/ nonblocking statement).
+	
+	== Limitations ==
+		Because verilog is intended for digital-level design, some parts of the
+	overall hardware system may have to be created/simulated via
+	nonsynthesizable system verilog script(s). In particular, main forms of 
+	memory (RAM and flash/EEPROM), the clock generator, and initial reset signal
+	generator may be scripted. The general idea is that any hardware directly
+	involved in processing or closely related should be either designed or go
+	through some designed medium (eg memory interacts through caches). Devices
+	that are hard/impossible to accurately design or distanced from the core
+	functionality of the hardware system may be scripted.
+    
 ================================================================================
-Compiler:
